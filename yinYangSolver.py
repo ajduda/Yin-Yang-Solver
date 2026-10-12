@@ -66,74 +66,99 @@ def find_perimeter_runs(grid, color):
     return runs
 
 
-def check_monochromatic_blocks(grid):
+def check_monochromatic_blocks(grid, log):
     rows = len(grid)
     cols = len(grid[0])
 
     for r in range(rows - 1):
         for c in range(cols - 1):
             block = [
-                grid[r][c],     grid[r][c + 1],
-                grid[r + 1][c], grid[r + 1][c + 1]
+                grid[r][c],
+                grid[r][c + 1],
+                grid[r + 1][c],
+                grid[r + 1][c + 1],
             ]
 
             for color in "BW":
-                if block.count(color) == 3 and "-" in block:
+                if block.count(color) == 3 and block.count("-") == 1:
                     for dr in range(2):
                         for dc in range(2):
                             if grid[r + dr][c + dc] == "-":
                                 grid[r + dr][c + dc] = (
                                     "W" if color == "B" else "B"
                                 )
-                                print(
+
+                                log.append(
                                     f"Row {r + dr + 1}, column {c + dc + 1} "
-                                    f"must be {grid[r + dr][c + dc]}: "
-                                    f"three {color} cells in a 2x2 block."
+                                    f"must be {'W' if color == 'B' else 'B'}: "
+                                    f"three cells in a 2x2 block are {color}."
                                 )
+
                                 return True
 
     return False
 
 
 
-def check_checkerboards(grid):
+
+def check_checkerboards(grid, log):
     rows = len(grid)
     cols = len(grid[0])
 
     for r in range(rows - 1):
         for c in range(cols - 1):
             block = [
-                [grid[r][c],     grid[r][c + 1]],
-                [grid[r + 1][c], grid[r + 1][c + 1]]
+                grid[r][c],
+                grid[r][c + 1],
+                grid[r + 1][c],
+                grid[r + 1][c + 1],
             ]
+
+            if "-" not in block:
+                continue
 
             for dr in range(2):
                 for dc in range(2):
-                    if block[dr][dc] != "-":
+                    if grid[r + dr][c + dc] != "-":
                         continue
 
-                    other = block[1 - dr][1 - dc]
-                    neighbor1 = block[dr][1 - dc]
-                    neighbor2 = block[1 - dr][dc]
+                    neighbors = []
 
-                    if (neighbor1 == neighbor2 != "-"
-                            and other != "-"
-                            and other != neighbor1):
-                        color = neighbor1
-                        grid[r + dr][c + dc] = color
+                    if dr > 0:
+                        neighbors.append(grid[r + dr - 1][c + dc])
+                    if dr < 1:
+                        neighbors.append(grid[r + dr + 1][c + dc])
+                    if dc > 0:
+                        neighbors.append(grid[r + dr][c + dc - 1])
+                    if dc < 1:
+                        neighbors.append(grid[r + dr][c + dc + 1])
 
-                        print(
-                            f"Row {r + dr + 1}, column {c + dc + 1} "
-                            f"must be {color}: the opposite color "
-                            f"would complete a checkerboard."
-                        )
-                        return True
+                    for color in "BW":
+                        if neighbors.count(color) == 2:
+                            other_color = "W" if color == "B" else "B"
+
+                            diagonal_r = r + (1 - dr)
+                            diagonal_c = c + (1 - dc)
+                            diagonal = grid[diagonal_r][diagonal_c]
+
+                            if diagonal == other_color:
+                                grid[r + dr][c + dc] = color
+
+                                log.append(
+                                    f"Row {r + dr + 1}, column {c + dc + 1} "
+                                    f"must be {color}: setting it to "
+                                    f"{other_color} would create a checkerboard "
+                                    "2x2 block."
+                                )
+
+                                return True
 
     return False
 
 
 
-def check_perimeter_connectivity(grid):
+
+def check_perimeter_connectivity(grid, log):
     perimeter = get_perimeter(grid)
 
     for color in "BW":
@@ -168,7 +193,7 @@ def check_perimeter_connectivity(grid):
 
                 if grid[r][c] == "-":
                     grid[r][c] = color
-                    print(
+                    log.append(
                         f"Row {r + 1}, column {c + 1} must be {color}: "
                         f"perimeter connectivity."
                     )
@@ -177,6 +202,7 @@ def check_perimeter_connectivity(grid):
                 return True
 
     return False
+
 
 
 def can_connect_color(grid, color, blocked=None):
@@ -217,7 +243,7 @@ def can_connect_color(grid, color, blocked=None):
     return all(cell in visited for cell in color_cells)
 
 
-def check_connectivity_bottlenecks(grid):
+def check_connectivity_bottlenecks(grid, log):
     rows = len(grid)
     cols = len(grid[0])
 
@@ -232,7 +258,7 @@ def check_connectivity_bottlenecks(grid):
 
                 if not can_connect_color(grid, color, blocked=(r, c)):
                     grid[r][c] = color
-                    print(
+                    log.append(
                         f"Row {r + 1}, column {c + 1} must be {color}: "
                         f"connectivity bottleneck."
                     )
@@ -241,6 +267,43 @@ def check_connectivity_bottlenecks(grid):
     return False
 
 
+
+
+def find_contradiction(grid):
+    rows = len(grid)
+    cols = len(grid[0])
+
+    for r in range(rows - 1):
+        for c in range(cols - 1):
+            block = [
+                grid[r][c],
+                grid[r][c + 1],
+                grid[r + 1][c],
+                grid[r + 1][c + 1],
+            ]
+
+            if block[0] in "BW" and all(cell == block[0] for cell in block):
+                return (
+                    f"Monochromatic 2x2 block at rows {r + 1}-{r + 2}, "
+                    f"columns {c + 1}-{c + 2}."
+                )
+
+            if (
+                "-" not in block
+                and block[0] == block[3]
+                and block[1] == block[2]
+                and block[0] != block[1]
+            ):
+                return (
+                    f"Checkerboard 2x2 block at rows {r + 1}-{r + 2}, "
+                    f"columns {c + 1}-{c + 2}."
+                )
+
+    for color in "BW":
+        if not can_connect_color(grid, color):
+            return f"Known {color} cells can no longer remain connected."
+
+    return None
 
 
 
@@ -268,18 +331,31 @@ def solve(grid):
         changed = False
 
         for technique in techniques:
-            if technique(grid):
+            log = []
+
+            if technique(grid, log):
                 print_grid(grid)
+
+                for message in log:
+                    print(message)
+
                 changed = True
                 break
 
         if not changed:
             break
 
+
     if any("-" in row for row in grid):
         print("Solver stalled: no more deductions found.")
     else:
-        print("All cells filled. Further validation is still needed.")
+        contradiction = find_contradiction(grid)
+
+        if contradiction:
+            print(f"Invalid solution: {contradiction}")
+        else:
+            print("All cells filled. No contradictions found.")
+
 
     return grid
 
