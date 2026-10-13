@@ -306,6 +306,72 @@ def find_contradiction(grid):
     return None
 
 
+def test_hypothesis(grid, r, c, color):
+    trial_grid = [row[:] for row in grid]
+    log = []
+
+    trial_grid[r][c] = color
+    log.append(
+        f"Assume row {r + 1}, column {c + 1} is {color}."
+    )
+
+    techniques = (
+        check_monochromatic_blocks,
+        check_checkerboards,
+        check_perimeter_connectivity,
+        check_connectivity_bottlenecks,
+    )
+
+    contradiction = find_contradiction(trial_grid)
+
+    while contradiction is None:
+        changed = False
+
+        for technique in techniques:
+            if technique(trial_grid, log):
+                changed = True
+                break
+
+        if not changed:
+            break
+
+        contradiction = find_contradiction(trial_grid)
+
+    return contradiction, log
+
+
+def check_single_cell_hypotheses(grid, log):
+    rows = len(grid)
+    cols = len(grid[0])
+
+    for r in range(rows):
+        for c in range(cols):
+            if grid[r][c] != "-":
+                continue
+
+            for color in "BW":
+                contradiction, trial_log = test_hypothesis(
+                    grid, r, c, color
+                )
+
+                if contradiction is None:
+                    continue
+
+                log.extend(trial_log)
+                log.append(f"Contradiction found: {contradiction}")
+
+                other_color = "W" if color == "B" else "B"
+                grid[r][c] = other_color
+
+                log.append(
+                    f"Therefore, row {r + 1}, column {c + 1} "
+                    f"must be {other_color}."
+                )
+
+                return True
+
+    return False
+
 
 def print_grid(grid):
     width = len(grid[0])
@@ -325,7 +391,9 @@ def solve(grid):
         check_checkerboards,
         check_perimeter_connectivity,
         check_connectivity_bottlenecks,
+        check_single_cell_hypotheses,
     )
+
 
     while True:
         changed = False
@@ -333,11 +401,12 @@ def solve(grid):
         for technique in techniques:
             log = []
 
-            if technique(grid, log):
-                print_grid(grid)
 
+            if technique(grid, log):
                 for message in log:
                     print(message)
+
+                print_grid(grid)
 
                 changed = True
                 break
