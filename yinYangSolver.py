@@ -337,7 +337,8 @@ def test_hypothesis(grid, r, c, color):
 
         contradiction = find_contradiction(trial_grid)
 
-    return contradiction, log
+    return contradiction, log, trial_grid
+
 
 
 def check_single_cell_hypotheses(grid, log):
@@ -349,40 +350,93 @@ def check_single_cell_hypotheses(grid, log):
             if grid[r][c] != "-":
                 continue
 
+            trials = {}
+
             for color in "BW":
-                contradiction, trial_log = test_hypothesis(
+                contradiction, trial_log, trial_grid = test_hypothesis(
                     grid, r, c, color
                 )
 
-                if contradiction is None:
-                    continue
+                if contradiction is not None:
+                    log.extend(trial_log)
+                    log.append(f"Contradiction found: {contradiction}")
 
-                log.extend(trial_log)
-                log.append(f"Contradiction found: {contradiction}")
+                    other_color = "W" if color == "B" else "B"
+                    grid[r][c] = other_color
 
-                other_color = "W" if color == "B" else "B"
-                grid[r][c] = other_color
+                    log.append(
+                        f"Therefore, row {r + 1}, column {c + 1} "
+                        f"must be {other_color}."
+                    )
 
+                    return True
+
+                trials[color] = (trial_log, trial_grid)
+
+            black_log, black_grid = trials["B"]
+            white_log, white_grid = trials["W"]
+            shared_deductions = []
+
+            for rr in range(rows):
+                for cc in range(cols):
+                    if grid[rr][cc] != "-":
+                        continue
+
+                    black_cell = black_grid[rr][cc]
+                    white_cell = white_grid[rr][cc]
+
+                    if black_cell == white_cell and black_cell in "BW":
+                        shared_deductions.append((rr, cc, black_cell))
+
+            if not shared_deductions:
+                continue
+
+            for color, trial_log, trial_grid in (
+                ("B", black_log, black_grid),
+                ("W", white_log, white_grid),
+            ):
                 log.append(
-                    f"Therefore, row {r + 1}, column {c + 1} "
-                    f"must be {other_color}."
+                    f"If row {r + 1}, column {c + 1} is {color}:"
+                )
+                log.extend(trial_log[1:])
+                log.append("No contradictions found.")
+                log.append(format_grid(trial_grid))
+
+            log.append(
+                f"If row {r + 1}, column {c + 1} is B or W:"
+            )
+
+            for rr, cc, color in shared_deductions:
+                grid[rr][cc] = color
+                log.append(
+                    f"Row {rr + 1}, column {cc + 1} "
+                    f"must be {color}."
                 )
 
-                return True
+            return True
 
     return False
 
 
-def print_grid(grid):
-    width = len(grid[0])
 
-    print("  " + "".join(str(i % 10) for i in range(1, width + 1)))
-    print(" +" + "-" * width + "+")
+
+def format_grid(grid):
+    width = len(grid[0])
+    lines = []
+
+    lines.append("  " + "".join(str(i % 10) for i in range(1, width + 1)))
+    lines.append(" +" + "-" * width + "+")
 
     for i, row in enumerate(grid, start=1):
-        print(f"{i % 10}|{''.join(' ' if cell == '-' else cell for cell in row)}|")
+        lines.append(f"{i % 10}|{''.join(' ' if cell == '-' else cell for cell in row)}|")
 
-    print(" +" + "-" * width + "+")
+    lines.append(" +" + "-" * width + "+")
+
+    return "\n".join(lines)
+
+
+def print_grid(grid):
+    print(format_grid(grid))
 
 
 def solve(grid):
